@@ -1,130 +1,103 @@
 package dev.sockmower.misguidedmod;
 
 import java.io.IOException;
+import org.slf4j.Logger;
+
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.ServerData;
-import org.apache.logging.log4j.Logger;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket;
+
+import com.mojang.logging.LogUtils;
 
 import io.netty.channel.ChannelPipeline;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.network.NetHandlerPlayClient;
-import net.minecraft.network.play.server.SPacketUnloadChunk;
+import net.minecraftforge.client.event.*;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.client.FMLClientHandler;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.network.FMLNetworkEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-@Mod(modid = MisguidedMod.MODID, name = MisguidedMod.NAME, version = MisguidedMod.VERSION, clientSideOnly = true)
+@Mod(MisguidedMod.MODID)
 public class MisguidedMod {
     public static final String MODID = "misguidedmod";
     public static final String NAME = "Just A Misguided Mod";
     public static final String VERSION = "1.0";
+    private static final Logger LOGGER = LogUtils.getLogger();
 
-    private static final Minecraft mc = Minecraft.getMinecraft();
-    public static Logger logger;
-    private final Set<Pos2> loadedChunks = new HashSet<Pos2>();
+    private static final Minecraft mc = Minecraft.getInstance();
+    
+    private static final Set<Pos2> loadedChunks = new HashSet<Pos2>();
     private static CachedWorld cachedWorld;
     private long lastExtraTime = 0;
+    
+    public MisguidedMod() {
+        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        modEventBus.addListener(this::init);
 
-    @EventHandler
-    public void preInit(FMLPreInitializationEvent event)
-    {
-        logger = event.getModLog();
-    }
-
-    @EventHandler
-    public void init(FMLInitializationEvent event) {
-        // some example code
-        logger.info("Initializing MisguidedMod v{}", VERSION);
         MinecraftForge.EVENT_BUS.register(this);
     }
 
-    public void insertPacketHandler() {
-        NetHandlerPlayClient mcConnection = (NetHandlerPlayClient) FMLClientHandler.instance().getClientPlayHandler();
-        if (mcConnection == null) {
-            logger.error("Could not inject packet handler into pipeline: mc.connection == null");
-            return;
-        }
-
-        ChannelPipeline pipe = mcConnection.getNetworkManager().channel().pipeline();
-
-        if (pipe.get(PacketHandler.NAME) != null) {
-            logger.warn("game server connection pipeline already contains handler, removing and re-adding");
-            pipe.remove(PacketHandler.NAME);
-        }
-
-        PacketHandler packetHandler = new PacketHandler(this);
-        pipe.addBefore("fml:packet_handler", PacketHandler.NAME, packetHandler);
-
-        logger.info("Packet handler inserted");
-    }
-
-    public void removePacketHandler() {
-        NetHandlerPlayClient mcConnection = (NetHandlerPlayClient) FMLClientHandler.instance().getClientPlayHandler();
-        if (mcConnection == null) {
-            logger.error("Could not inject packet handler into pipeline: mc.connection == null");
-            return;
-        }
-
-        ChannelPipeline pipe = mcConnection.getNetworkManager().channel().pipeline();
-
-        if (pipe.get(PacketHandler.NAME) != null) {
-            pipe.remove(PacketHandler.NAME);
-        }
+    public void init(FMLClientSetupEvent event) {
+        LOGGER.info("Initializing MisguidedMod v{}", VERSION);
+        MinecraftForge.EVENT_BUS.register(this);
     }
 
     public void loadChunk(CachedChunk chunk) {
-        if (!mc.isCallingFromMinecraftThread()) {
-            logger.warn("Calling loadChunk from non-mc thread");
+        if (!mc.isSameThread()) {
+            LOGGER.warn("Calling loadChunk from non-mc thread");
             return;
         }
 
-        NetHandlerPlayClient conn = mc.getConnection();
+        ClientPacketListener conn = mc.getConnection();
         if (conn == null) {
-            logger.warn("Connection is null!");
+            LOGGER.warn("Connection is null!");
             return;
         }
 
         unloadChunk(chunk.pos);
 
-        conn.handleChunkData(chunk.packet);
+        conn.handleLevelChunkWithLight(chunk.packet);
         loadedChunks.add(chunk.pos);
     }
 
     public void unloadChunk(Pos2 pos) {
-        if (!mc.isCallingFromMinecraftThread()) {
-            logger.warn("Calling loadChunk from non-mc thread");
+        if (!mc.isSameThread()) {
+            LOGGER.warn("Calling loadChunk from non-mc thread");
             return;
         }
 
-        NetHandlerPlayClient conn = mc.getConnection();
+        ClientPacketListener conn = mc.getConnection();
         if (conn == null) {
-            logger.warn("Connection is null!");
+            LOGGER.warn("Connection is null!");
             return;
         }
 
-        conn.processChunkUnload(new SPacketUnloadChunk(pos.x, pos.z));
+        conn.handleForgetLevelChunk(new ClientboundForgetLevelChunkPacket(pos.x, pos.z));
         loadedChunks.remove(pos);
     }
 
     public Pos2 getPlayerChunkPos() {
-        if (mc.player == null) {
+        LocalPlayer player = mc.player;
+
+        if (player == null) {
             return null;
         }
-        if (mc.player.posX == 0 && mc.player.posY == 0 && mc.player.posZ == 0) return null;
-        if (mc.player.posX == 8.5 && mc.player.posY == 65 && mc.player.posZ == 8.5) return null; // position not set from server yet
-        return Pos2.chunkPosFromBlockPos(mc.player.posX, mc.player.posZ);
+
+        if (player.position().x == 0 && player.position().y == 0 && player.position().z == 0) return null;
+        if (player.position().x == 8.5 && player.position().y == 65 && player.position().z == 8.5) return null; // position not set from server yet
+        return Pos2.chunkPosFromBlockPos(player.position().x, player.position().z);
     }
 
     public Set<Pos2> getNeededChunkPositions() {
-        final int rdClient = mc.gameSettings.renderDistanceChunks + 1;
+        final int rdClient = mc.options.renderDistance().get() + 1;
         final Pos2 player = getPlayerChunkPos();
 
         final Set<Pos2> loadable = new HashSet<>();
@@ -155,7 +128,7 @@ public class MisguidedMod {
     }
 
     public void unloadOutOfRangeChunks() {
-        final int rdClient = mc.gameSettings.renderDistanceChunks + 1;
+        final int rdClient = mc.options.renderDistance().get() + 1;
         final Pos2 player = getPlayerChunkPos();
 
         if (player == null) {
@@ -171,11 +144,11 @@ public class MisguidedMod {
             }
         }
 
-        toUnload.forEach(pos -> mc.addScheduledTask(() -> unloadChunk(pos)));
+        toUnload.forEach(pos -> mc.executeBlocking(() -> unloadChunk(pos)));
     }
 
     public void onReceiveGameChunk(CachedChunk chunk) throws IOException {
-        mc.addScheduledTask(() -> loadChunk(chunk));
+        mc.executeBlocking(() -> loadChunk(chunk));
 
         if ((System.currentTimeMillis() / 1000) - lastExtraTime > 1) {
             lastExtraTime = System.currentTimeMillis() / 1000;
@@ -187,34 +160,64 @@ public class MisguidedMod {
     }
 
     @SubscribeEvent
-    public void onGameConnected(FMLNetworkEvent.ClientConnectedToServerEvent event) {
-        ServerData currentServerData = mc.getCurrentServerData();
-        if (currentServerData == null || !mc.getCurrentServerData().serverIP.equals("play.wynncraft.com")) {
+    public void onGameConnected(ClientPlayerNetworkEvent.LoggingIn event) {
+        ServerData currentServer = mc.getCurrentServer();
+        ClientPacketListener conn = mc.getConnection();
+
+        if (currentServer == null) {
+            LOGGER.info("Current server is null");
             return;
         }
-        logger.info("Connected to server {}, client render distance is {}",
-                mc.getCurrentServerData().serverIP,
-                mc.gameSettings.renderDistanceChunks);
 
-        insertPacketHandler();
+        if (conn == null) {
+            LOGGER.info("Connection is null");
+            return;
+        }
 
-        cachedWorld = new CachedWorld(
-                Paths.get(mc.mcDataDir.getAbsolutePath() + "\\misguidedmod\\" + mc.getCurrentServerData().serverIP),
-                logger,
-                mc,
-                this
-                );
+        LOGGER.info("Connecting to server {}", currentServer.ip);
+
+        ChannelPipeline pipe = conn.getConnection().channel().pipeline();
+
+        if (pipe.get(PacketHandler.NAME) != null) {
+            LOGGER.warn("Game server connection pipeline already contains handler, removing and re-adding");
+            pipe.remove(PacketHandler.NAME);
+        }
+
+        LOGGER.info("Adding packet handler to pipeline");
+
+        PacketHandler packetHandler = new PacketHandler(this);
+        pipe.addBefore("packet_handler", PacketHandler.NAME, packetHandler);
+
+        Path path = Paths.get(mc.gameDirectory.getAbsolutePath() + "\\misguidedmod\\" + currentServer.ip);
+
+        LOGGER.info("Connected to server {}, client render distance is {}", currentServer.ip, mc.options.renderDistance().get());
+        LOGGER.info("Creating cached world at {}", path.toAbsolutePath());
+
+        cachedWorld = new CachedWorld(path, LOGGER, mc, this);
     }
 
     @SubscribeEvent
-    public void onGameDisconnected(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+    public void onGameDisconnected(ClientPlayerNetworkEvent.LoggingOut event) {
         loadedChunks.clear();
-        logger.info("loadedChunks cleared.");
+        LOGGER.info("loadedChunks cleared.");
+
         try {
             cachedWorld.releaseFiles();
             cachedWorld.cancelThreads();
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to release cached world files");
+        }
 
-        removePacketHandler();
+        ClientPacketListener conn = mc.getConnection();
+
+        if (conn == null) {
+            LOGGER.info("Connection is null");
+        } else {
+            ChannelPipeline pipe = conn.getConnection().channel().pipeline();
+
+            if (pipe != null && pipe.get(PacketHandler.NAME) != null) {
+                pipe.remove(PacketHandler.NAME);
+            }
+        }
     }
 }

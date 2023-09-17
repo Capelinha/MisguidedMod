@@ -3,21 +3,17 @@ package dev.sockmower.misguidedmod;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.play.server.SPacketChunkData;
-import org.apache.logging.log4j.Logger;
-import sun.misc.Cache;
+
+import org.slf4j.Logger;
 
 public class CachedWorld {
     private final String directory;
     private Logger logger;
-    private Minecraft mc;
-    private MisguidedMod mm;
 
     private Map<String, CachedRegion> regionCache = new ConcurrentHashMap<>();
     private final Set<Pos2> desiredChunks = ConcurrentHashMap.newKeySet();
@@ -29,11 +25,10 @@ public class CachedWorld {
             try {
                 Files.createDirectories(directory);
             } catch (IOException ignored) {
-                logger.error(ignored);
+                logger.error(ignored.toString());
             }
         }
-        this.mc = mc;
-        this.mm = mm;
+
         this.directory = directory.toString();
         logger.info("Initialized cachedWorld with working dir as {}", directory);
 
@@ -47,7 +42,7 @@ public class CachedWorld {
                             CachedRegion reg = getCachedRegion(pos.x >> 4, pos.z >> 4);
                             CachedChunk x = reg.getChunk(pos);
                             if (x != null) {
-                                mc.addScheduledTask(() -> mm.loadChunk(x));
+                                mc.executeBlocking(() -> mm.loadChunk(x));
                             }
                         } catch (Exception e) {
                             e.printStackTrace();
@@ -143,7 +138,7 @@ public class CachedWorld {
     }
 
     public void cancelThreads() {
-        CachedChunk poisonedChunk = new CachedChunk(new Pos2(-1, -1), new SPacketChunkData());
+        CachedChunk poisonedChunk = new CachedChunk(new Pos2(-1, -1), null);
         poisonedChunk.poison();
         chunkWriteQueue.add(poisonedChunk);
 

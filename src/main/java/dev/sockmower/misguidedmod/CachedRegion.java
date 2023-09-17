@@ -10,17 +10,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import org.apache.logging.log4j.Logger;
 import org.lwjgl.BufferUtils;
 
-import dev.sockmower.misguidedmod.repack.io.airlift.compress.zstd.ZstdCompressor;
-import dev.sockmower.misguidedmod.repack.io.airlift.compress.zstd.ZstdDecompressor;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import net.minecraft.network.PacketBuffer;
-import net.minecraft.network.play.server.SPacketChunkData;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
+
+import org.slf4j.Logger;
 
 public class CachedRegion implements Closeable {
     public static final int CHUNKS_PER_REGION = 32 * 32;
@@ -78,26 +77,21 @@ public class CachedRegion implements Closeable {
         seekableStream.read(chunkData);
         chunkData.flip();
 
-        ZstdDecompressor decompressor = new ZstdDecompressor();
-
-        long size = ZstdDecompressor.getDecompressedSize(chunkData);
-        ByteBuffer decompressed = BufferUtils.createByteBuffer((int)size);
-
-        decompressor.decompress(chunkData, decompressed);
-
         ByteBuf buffer = Unpooled.buffer();
-        decompressed.flip();
-        buffer.writeBytes(decompressed);
+        buffer.writeBytes(chunkData);
         buffer.readerIndex(0);
 
-        SPacketChunkData chunkPacket = new SPacketChunkData();
+        logger.info("Loading chunk ({} bytes) at offset {}", buffer.readableBytes(), header.offset);
+
         try {
-            chunkPacket.readPacketData(new PacketBuffer(buffer));
-        } catch (Exception ignored) {
+            FriendlyByteBuf newBuffer = new FriendlyByteBuf(buffer);
+            ClientboundLevelChunkWithLightPacket chunkPacket = new ClientboundLevelChunkWithLightPacket(newBuffer);
+
+            return new CachedChunk(pos, chunkPacket);
+        } catch (Exception e) {
             logger.warn("Malformed chunk at {}", pos.toString());
             return null;
         }
-        return new CachedChunk(pos, chunkPacket);
     }
 
     void writeHeader(ChunkHeader head) throws IOException {
@@ -115,19 +109,16 @@ public class CachedRegion implements Closeable {
     void writeChunk(CachedChunk chunk) throws IOException {
         ChunkHeader header = getChunkHeader(chunk.pos);
 
-        PacketBuffer buffer = new PacketBuffer(Unpooled.buffer());
-        chunk.packet.writePacketData(buffer);
+        FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
+
+        try {
+            chunk.packet.write(buffer);
+        } catch (Exception e) {
+            logger.warn("Packet error chunk at {}: {}", chunk.pos.toString(), e.toString());
+            return;
+        }
+        
         int size = buffer.readableBytes();
-
-        ByteBuffer chunkData = BufferUtils.createByteBuffer(size);
-        buffer.readBytes(chunkData);
-        chunkData.flip();
-
-        ZstdCompressor compressor = new ZstdCompressor();
-        ByteBuffer compressed = BufferUtils.createByteBuffer(compressor.maxCompressedLength(size));
-        compressor.compress(chunkData, compressed);
-
-        int newSize = compressed.position();
 
         if (header.chunkExists()) {
             // TODO: this doesn't actually work
@@ -156,12 +147,11 @@ public class CachedRegion implements Closeable {
 
             seekableStream.position(max.offset + max.size);
 
-            header.size = newSize;
+            header.size = size;
             header.offset = max.offset + max.size;
 
-            //logger.info("Writing compressed chunk ({} bytes, down from {}) at offset {}", newSize, size, header.offset);
-
-            seekableStream.write((ByteBuffer)compressed.flip());
+            logger.info("Writing chunk ({} bytes) at offset {}", size, header.offset);
+            seekableStream.write(buffer.nioBuffer());
 
             writeHeader(header);
         }

@@ -7,9 +7,9 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandler;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import net.minecraft.network.Packet;
-import net.minecraft.network.play.server.SPacketChunkData;
-import net.minecraft.network.play.server.SPacketUnloadChunk;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundForgetLevelChunkPacket;
+import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
 
 /**
  * Hook into Minecraft's packet pipeline
@@ -28,18 +28,18 @@ public class PacketHandler extends SimpleChannelInboundHandler<Packet<?>> implem
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Packet<?> packet) throws Exception {
-        if (packet instanceof SPacketUnloadChunk) {
+        if (packet instanceof ClientboundForgetLevelChunkPacket) {
             return; // ignore packet, we manually unload our chunks
         }
-        if (packet instanceof SPacketChunkData) {
+        if (packet instanceof ClientboundLevelChunkWithLightPacket) {
             try {
-                final SPacketChunkData chunkPacket = (SPacketChunkData) packet;
-                if (chunkPacket.isFullChunk()) {
+                final ClientboundLevelChunkWithLightPacket chunkPacket = (ClientboundLevelChunkWithLightPacket) packet;
+                // if (chunkPacket.isFullChunk()) {
                     // full chunk, not just a section
-                    final Pos2 pos = new Pos2(chunkPacket.getChunkX(), chunkPacket.getChunkZ());
+                    final Pos2 pos = new Pos2(chunkPacket.getX(), chunkPacket.getZ());
                     moreChunks.onReceiveGameChunk(new CachedChunk(pos, chunkPacket));
                     return; // drop packet, we load it manually
-                }
+                // }
             } catch (Exception e) {
                 e.printStackTrace();
             }
