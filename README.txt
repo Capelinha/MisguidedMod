@@ -1,46 +1,32 @@
+# MisguidedMod
 
-Source installation information for modders
--------------------------------------------
-This code follows the Minecraft Forge installation methodology. It will apply
-some small patches to the vanilla MCP source code, giving you and it access 
-to some of the data and functions you need to build a successful mod.
+Extends server render distance by storing local cache!
 
-Note also that the patches are built against "un-renamed" MCP source code (aka
-SRG Names) - this means that you will not be able to read them directly against
-normal code.
+Now, you can explore vast stretches of terrain without sacrificing visual quality, as the mod downloads and stores chunks in a local cache. This means less waiting time and more adventure time, allowing you to make the most out of your server even when the render distance is reduced.
 
-Setup Process:
-==============================
+Don't let render distance limitations hinder your Minecraft fun. Install this mod and enjoy a more expansive and immersive gaming environment than ever before. Your adventures will never be the same again!
 
-Step 1: Open your command-line and browse to the folder where you extracted the zip file.
+Using this mod on the Wynncraft server could be a great idea as the render distance is very reduced there.
 
-Step 2: You're left with a choice.
-If you prefer to use Eclipse:
-1. Run the following command: `gradlew genEclipseRuns` (`./gradlew genEclipseRuns` if you are on Mac/Linux)
-2. Open Eclipse, Import > Existing Gradle Project > Select Folder 
-   or run `gradlew eclipse` to generate the project.
+# Troubleshooting
+Q: it isn't working  
+A: the code is setup to only work when connecting to the ip `play.wynncraft.com` so either modify that yourself or connect to that ip
 
-If you prefer to use IntelliJ:
-1. Open IDEA, and import project.
-2. Select your build.gradle file and have it import.
-3. Run the following command: `gradlew genIntellijRuns` (`./gradlew genIntellijRuns` if you are on Mac/Linux)
-4. Refresh the Gradle Project in IDEA if required.
+Q: it still isn't working  
+A: if you haven't explored much yet then you won't have a cache built up
 
-If at any point you are missing libraries in your IDE, or you've run into problems you can 
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
+Q: it **still** isn't working  
+A: look in your logs for errors i guess, you can ignore any about team packets tho, send me an error report i might fix it idk
 
-Mapping Names:
-=============================
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license, if you do not agree with it you can change your mapping names to other crowdsourced names in your 
-build.gradle. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
+# FAQ
+Q: sock what the fuck is this your code is an uncommented piece of shit  
+A: yes, next question
 
-Additional Resources: 
-=========================
-Community Documentation: https://mcforge.readthedocs.io/en/latest/gettingstarted/  
-LexManos' Install Video: https://www.youtube.com/watch?v=8VEdtQLuLO0  
-Forge Forum: https://forums.minecraftforge.net/  
-Forge Discord: https://discord.gg/UvedJ9m  
+Q: sock why are you using [thing] instead of [thing]  
+A: probably because i have no idea what i'm doing, this is my first mod, feel free to make a PR to fix it
+
+Q: sock can i fix your code pls  
+A: yes! i will be reviewing and accepting prs, please test them before you make a pr tho xx ty love u all
+
+Q: sock why does my game have random lag spikes  
+A: this is related to some kinda funky teams packet wynn sends, you can modify the code to drop it if you dont want the team stuff nothing i can do afaik really

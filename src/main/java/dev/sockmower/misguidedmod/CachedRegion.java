@@ -81,7 +81,7 @@ public class CachedRegion implements Closeable {
         buffer.writeBytes(chunkData);
         buffer.readerIndex(0);
 
-        logger.info("Loading chunk ({} bytes) at offset {}", buffer.readableBytes(), header.offset);
+        // logger.info("Loading chunk ({} bytes) at offset {}", buffer.readableBytes(), header.offset);
 
         try {
             FriendlyByteBuf newBuffer = new FriendlyByteBuf(buffer);
@@ -150,7 +150,7 @@ public class CachedRegion implements Closeable {
             header.size = size;
             header.offset = max.offset + max.size;
 
-            logger.info("Writing chunk ({} bytes) at offset {}", size, header.offset);
+            // logger.info("Writing chunk ({} bytes) at offset {}", size, header.offset);
             seekableStream.write(buffer.nioBuffer());
 
             writeHeader(header);

@@ -164,8 +164,8 @@ public class MisguidedMod {
         ServerData currentServer = mc.getCurrentServer();
         ClientPacketListener conn = mc.getConnection();
 
-        if (currentServer == null) {
-            LOGGER.info("Current server is null");
+        if (currentServer == null || (!currentServer.ip.equals("play.wynncraft.com") && !currentServer.ip.equals("play.wynncraft.net"))) {
+            LOGGER.info("Current server is null or not play.wynncraft.com");
             return;
         }
 
